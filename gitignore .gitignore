@@ -1,0 +1,81 @@
+# Unity generated files
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+Assets/AssetStoreTools*
+UserSettings/
+MemoryCaptures/
+Logs/
+*.pidb
+*.suo
+*.user
+*.userprefs
+*.unityproj
+*.tmproj
+*.csproj
+*.vcxproj
+*.pidb.meta
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+*.pidb
+*.sln*
+*.suo
+*.tmp
+*.bak
+*.swp
+*.lock
+*.log
+
+# Visual Studio generated files
+.vs/
+*.dbmdl
+*.dbproj
+*.sdf
+*.cache
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Crash and error logs
+*.stacktrace
+
+# Build output
+*.exe
+*.dll
+*.apk
+*.aab
+*.xcodeproj
+*.xcworkspace
+*.app
+*.ipa
+
+# Unity auto-generated meta files
+*.meta
+
+# Ignore local packages
+Packages/*
+!Packages/manifest.json
+!Packages/packages-lock.json
+
+# Ignore JetBrains Rider project files
+.idea/
+*.sln.iml
+
+# Ignore generated documentation
+Documentation~
+
+# Ignore test results
+TestResults/
+
+# Ignore generated files from Unity Collaborate
+.collabignore
