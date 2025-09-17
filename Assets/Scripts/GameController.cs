@@ -42,7 +42,6 @@ public class GameController : MonoBehaviour
         SetPromptText("Guess the sculpture:");
         guessInput.text = "";
         guessInput.gameObject.SetActive(true);
-        guessInput.ActivateInputField();
         submitButton.gameObject.SetActive(true);
     }
 
