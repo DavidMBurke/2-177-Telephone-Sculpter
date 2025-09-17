@@ -2051,7 +2051,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 450de27e4ca6aa6499068e6784d95a31, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  inputField: {fileID: 0}
+  inputField: {fileID: 1382900613}
   locale: 
   title: Enter text
 --- !u!1 &1444853054
@@ -2784,7 +2784,7 @@ Light:
   m_BounceIntensity: 1
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
-  m_BoundingSphereOverride: {x: 1.02e-43, y: 3e-45, z: 2.086e-41, w: 0}
+  m_BoundingSphereOverride: {x: 4.7629952e+30, y: 1.8394619e+25, z: 2.3684626e+20, w: 1.6266931e+10}
   m_UseBoundingSphereOverride: 0
   m_UseViewFrustumForShadowCasterCull: 1
   m_ShadowRadius: 0
