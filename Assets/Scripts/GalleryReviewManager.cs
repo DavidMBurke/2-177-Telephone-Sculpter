@@ -149,4 +149,13 @@ public class GalleryReviewManager : MonoBehaviour
             bounds.Encapsulate(renderers[i].bounds);
         return true;
     }
+
+    public void ClearAll()
+    {
+        StopReview();
+        HideAll();
+        _items.Clear();
+        _current = -1;
+        if (promptText != null) promptText.text = "";
+    }
 }
