@@ -2,15 +2,17 @@ using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
-using UnityEngine.SceneManagement;
 
 public class GameController : MonoBehaviour
 {
+    [Header("UI")]
     public TextMeshProUGUI promptLabel;
     public TMP_InputField guessInput;
     public Button submitButton;
     public Button endGameButton;
-    public Button startNewButton;   // NEW
+    public Button startNewButton;   // Show only after End Game
+
+    [Header("Game Objects")]
     public BuildZone buildZone;
     public GalleryReviewManager reviewManager;
 
@@ -22,24 +24,49 @@ public class GameController : MonoBehaviour
 
     void Start()
     {
-        // Wire up buttons
-        submitButton.onClick.AddListener(OnSubmit);
-        endGameButton.onClick.AddListener(OnEndGame);
-
+        // Safety: null checks before wiring
+        if (submitButton != null) submitButton.onClick.AddListener(OnSubmit);
+        if (endGameButton != null) endGameButton.onClick.AddListener(OnEndGame);
         if (startNewButton != null)
         {
             startNewButton.onClick.AddListener(OnStartNew);
-            startNewButton.gameObject.SetActive(false); // hidden until you end the game
+            startNewButton.gameObject.SetActive(false);   // hidden during play
         }
 
-        // Make sure End Game is visible & usable from the start
-        endGameButton.gameObject.SetActive(true);
-        endGameButton.interactable = true;
+        // End Game available during play
+        if (endGameButton != null)
+        {
+            endGameButton.gameObject.SetActive(true);
+            endGameButton.interactable = true;
+        }
 
-        // First prompt
+        StartFreshRound();
+    }
+
+    // -------------------------
+    // Round / Phase management
+    // -------------------------
+    private void StartFreshRound()
+    {
+        // Generate first prompt
         currentPrompt = PromptGenerator.GeneratePrompt();
         chain.Clear();
         chain.Add(currentPrompt);
+
+        // Reset UI state for a new round
+        if (startNewButton != null) startNewButton.gameObject.SetActive(false);
+        if (endGameButton != null) { endGameButton.gameObject.SetActive(true); endGameButton.interactable = true; }
+        if (submitButton != null) { submitButton.gameObject.SetActive(true); submitButton.interactable = true; }
+        if (guessInput != null)
+        {
+            guessInput.text = "";
+            guessInput.gameObject.SetActive(false);
+            guessInput.interactable = true;
+        }
+
+        // Make sure any leftover parts are gone (e.g., after a previous run)
+        ClearBuildZoneChildren();
+
         EnterSculptPhase();
     }
 
@@ -77,6 +104,9 @@ public class GameController : MonoBehaviour
         }
     }
 
+    // -------------------------
+    // Button handlers
+    // -------------------------
     private void OnSubmit()
     {
         switch (phase)
@@ -90,10 +120,10 @@ public class GameController : MonoBehaviour
                 if (string.IsNullOrEmpty(guess))
                     return;
 
-                // Save & clear the build zone and register for review
                 if (buildZone != null)
                 {
-                    var saved = buildZone.SaveAndClear(currentPrompt, guess); // :contentReference[oaicite:1]{index=1}
+                    // BuildZone should internally call: reviewManager.Register(sculpture, prompt, guess)
+                    buildZone.SaveAndClear(currentPrompt, guess);
                 }
 
                 chain.Add(guess);
@@ -106,58 +136,66 @@ public class GameController : MonoBehaviour
 
     private void OnEndGame()
     {
-        // Lock inputs
+        // Capture any sculpture still in the build zone (no guess yet)
+        CaptureFinalSculptIfAny();
+
+        // Lock interactive inputs during review
         if (submitButton != null) submitButton.interactable = false;
         if (guessInput != null) guessInput.interactable = false;
-
-        // Keep End Game visible but disable the click
         if (endGameButton != null) endGameButton.interactable = false;
 
-        // Show Start New
+        // Reveal "Start New" so the player can begin a fresh round after reviewing
         if (startNewButton != null) startNewButton.gameObject.SetActive(true);
 
-        // Start the review slideshow
+        // Kick off the review slideshow
         if (reviewManager != null)
         {
-            reviewManager.StartReview(); // :contentReference[oaicite:2]{index=2}
+            reviewManager.StartReview();
         }
         else
         {
-            Debug.LogWarning("GalleryReviewManager not assigned in GameController.");
+            Debug.LogWarning("GameController: GalleryReviewManager is not assigned.");
         }
     }
 
     private void OnStartNew()
     {
-        // Stop and clear the existing review list/items
+        // Stop and clear the previous review items/UI
         if (reviewManager != null)
         {
-            reviewManager.StopReview(); // :contentReference[oaicite:3]{index=3}
-            reviewManager.ClearAll();   // NEW method below
+            reviewManager.StopReview();
+            reviewManager.ClearAll();
         }
 
-        // Clear any leftover pieces in the build zone (if user ended during sculpt)
+        // Ensure the build zone is cleared (in case End Game was pressed mid-sculpt)
         ClearBuildZoneChildren();
 
-        // Reset the prompt chain and UI
-        chain.Clear();
-        currentPrompt = PromptGenerator.GeneratePrompt();
-        chain.Add(currentPrompt);
-
-        // Re-enable inputs
+        // Re-enable all controls for a new round
         if (submitButton != null) { submitButton.interactable = true; submitButton.gameObject.SetActive(true); }
         if (guessInput != null) { guessInput.interactable = true; guessInput.text = ""; guessInput.gameObject.SetActive(false); }
         if (endGameButton != null) { endGameButton.interactable = true; endGameButton.gameObject.SetActive(true); }
         if (startNewButton != null) startNewButton.gameObject.SetActive(false);
 
-        EnterSculptPhase();
+        StartFreshRound();
+    }
+
+    // -------------------------
+    // Helpers
+    // -------------------------
+    private void CaptureFinalSculptIfAny()
+    {
+        if (buildZone == null) return;
+        var t = buildZone.transform;
+        if (t.childCount == 0) return;
+
+        // No guess provided; Register will just show Prompt in the review
+        buildZone.SaveAndClear(currentPrompt, "");
     }
 
     private void ClearBuildZoneChildren()
     {
         if (buildZone == null) return;
         var t = buildZone.transform;
-        // destroy any loose parts left in the zone
         for (int i = t.childCount - 1; i >= 0; i--)
         {
             var child = t.GetChild(i);

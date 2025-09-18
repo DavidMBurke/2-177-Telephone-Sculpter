@@ -9,8 +9,11 @@ public class GalleryReviewManager : MonoBehaviour
     public Transform displayAnchor;
     public TMP_Text promptText;
     public float autoAdvanceSeconds = 3f;
-    [Tooltip("Reparent to the anchor so local transform resets (usually not required).")]
+
+    [Tooltip("If true, item will be parented under displayAnchor while shown.")]
     public bool reparentToDisplay = false;
+
+    [Tooltip("Applied when the item is shown at the displayAnchor.")]
     public Vector3 displayScale = Vector3.one;
 
     private class Item
@@ -18,122 +21,158 @@ public class GalleryReviewManager : MonoBehaviour
         public GameObject go;
         public string prompt;
         public string guess;
-        public Item(GameObject go, string prompt, string guess)
-        {
-            this.go = go;
-            this.prompt = prompt;
-            this.guess = guess;
-        }
+
+        // For optional restoration if you want to put items back later
+        public Transform originalParent;
+        public Vector3 originalPosition;
+        public Quaternion originalRotation;
+        public Vector3 originalScale;
     }
 
     private readonly List<Item> _items = new List<Item>();
     private int _current = -1;
     private Coroutine _cycleCo;
-    private bool showPrompt = true;
 
+    /// <summary>
+    /// BuildZone.SaveAndClear(...) calls this. Signature must match!
+    /// </summary>
     public void Register(GameObject sculpture, string prompt, string guess)
     {
         if (sculpture == null) return;
+
+        // Cache original xform
+        var it = new Item
+        {
+            go = sculpture,
+            prompt = prompt,
+            guess = guess ?? "",
+            originalParent = sculpture.transform.parent,
+            originalPosition = sculpture.transform.position,
+            originalRotation = sculpture.transform.rotation,
+            originalScale = sculpture.transform.localScale
+        };
+
+        // Ensure off until it's their turn
         sculpture.SetActive(false);
-        _items.Add(new Item(sculpture, prompt, guess));
+
+        _items.Add(it);
     }
 
     public void StartReview()
     {
         if (_items.Count == 0)
         {
-            Debug.LogWarning("[GalleryReview] No items to review.");
+            Debug.Log("[GalleryReviewManager] StartReview called with no items.");
             return;
         }
+
+        StopReview(); // ensure no double coroutine
         HideAll();
         _current = -1;
+
+        // First frame show, then auto-advance
         Next();
 
         if (autoAdvanceSeconds > 0f)
-        {
-            if (_cycleCo != null) StopCoroutine(_cycleCo);
-            _cycleCo = StartCoroutine(CycleRoutine());
-        }
+            _cycleCo = StartCoroutine(AutoCycle());
     }
 
     public void StopReview()
     {
-        if (_cycleCo != null) StopCoroutine(_cycleCo);
-        _cycleCo = null;
+        if (_cycleCo != null)
+        {
+            StopCoroutine(_cycleCo);
+            _cycleCo = null;
+        }
+        // Keep items hidden when stopping
         HideAll();
         _current = -1;
+    }
+
+    public void ClearAll()
+    {
+        StopReview();
+        HideAll();
+        _items.Clear();
+        _current = -1;
+        if (promptText != null) promptText.text = "";
     }
 
     public void Next()
     {
         if (_items.Count == 0) return;
+
+        // Hide old
         if (_current >= 0 && _current < _items.Count && _items[_current].go != null)
             _items[_current].go.SetActive(false);
 
+        // Advance
         _current = (_current + 1) % _items.Count;
+
+        // Show current
         ShowCurrent();
     }
 
-    public void Prev()
+    private IEnumerator AutoCycle()
     {
-        if (_items.Count == 0) return;
-        if (_current >= 0 && _current < _items.Count && _items[_current].go != null)
-            _items[_current].go.SetActive(false);
-
-        _current = (_current - 1 + _items.Count) % _items.Count;
-        ShowCurrent();
+        var wait = new WaitForSeconds(autoAdvanceSeconds);
+        while (true)
+        {
+            yield return wait;
+            Next();
+        }
     }
 
     private void ShowCurrent()
     {
-        var item = _items[_current];
-        if (item == null || item.go == null) return;
+        if (_current < 0 || _current >= _items.Count) return;
+
+        var it = _items[_current];
+        if (it.go == null) return;
+
+        // Text
+        if (promptText != null)
+        {
+            if (!string.IsNullOrEmpty(it.guess))
+                promptText.text = $"Prompt: {it.prompt}\nGuess: {it.guess}";
+            else
+                promptText.text = $"Prompt: {it.prompt}";
+        }
+
+        // Positioning
+        var tf = it.go.transform;
 
         if (displayAnchor != null)
-            PlaceAtAnchorByBoundsCenter(item.go, displayAnchor);
+        {
+            if (reparentToDisplay)
+                tf.SetParent(displayAnchor, worldPositionStays: false);
 
-        item.go.SetActive(true);
-        if (promptText != null)
-            promptText.text = showPrompt ? item.prompt ?? "" : item.guess ?? "";
+            // Place/rotate to anchor
+            tf.position = displayAnchor.position;
+            tf.rotation = displayAnchor.rotation;
+        }
+
+        // Scale
+        if (displayScale != Vector3.zero)
+            tf.localScale = displayScale;
+
+        // Optional: center the bounds at the anchor for nicer framing
+        if (displayAnchor != null && TryGetHierarchyBounds(it.go, out var b))
+        {
+            var delta = displayAnchor.position - b.center;
+            tf.position += delta;
+        }
+
+        it.go.SetActive(true);
     }
 
     private void HideAll()
     {
         foreach (var it in _items)
-            if (it != null && it.go != null)
+        {
+            if (it?.go != null)
                 it.go.SetActive(false);
-    }
-
-    private IEnumerator CycleRoutine()
-    {
-        while (true)
-        {
-            yield return new WaitForSeconds(autoAdvanceSeconds);
-            showPrompt = !showPrompt;
-            if (!showPrompt)
-                Next();
-            else
-                ShowCurrent();
         }
-    }
-
-    private void PlaceAtAnchorByBoundsCenter(GameObject go, Transform anchor)
-    {
-        if (reparentToDisplay)
-            go.transform.SetParent(anchor, true);
-
-        Bounds b;
-        if (TryGetHierarchyBounds(go, out b))
-        {
-            Vector3 offset = b.center - go.transform.position;
-            go.transform.SetPositionAndRotation(anchor.position - offset, anchor.rotation);
-        }
-        else
-        {
-            go.transform.SetPositionAndRotation(anchor.position, anchor.rotation);
-        }
-
-        go.transform.localScale = displayScale;
     }
 
     private bool TryGetHierarchyBounds(GameObject go, out Bounds bounds)
@@ -148,14 +187,5 @@ public class GalleryReviewManager : MonoBehaviour
         for (int i = 1; i < renderers.Length; i++)
             bounds.Encapsulate(renderers[i].bounds);
         return true;
-    }
-
-    public void ClearAll()
-    {
-        StopReview();
-        HideAll();
-        _items.Clear();
-        _current = -1;
-        if (promptText != null) promptText.text = "";
     }
 }
